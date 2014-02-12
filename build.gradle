@@ -1,0 +1,58 @@
+subprojects {
+    apply plugin: 'maven-publish'
+    apply plugin: 'ivy-publish'
+    apply plugin: 'java'
+
+    group = 'testrepocreator.libraries'
+
+    publishing {
+        repositories {
+            maven {
+                url "${rootProject.buildDir}/mavenrepo"
+            }
+            ivy {
+                url "${rootProject.buildDir}/ivyrepo"
+                layout('pattern') {
+                    ivy '[organisation]/[module]/[revision]/[module]-[revision]-ivy.[ext]'
+                    artifact '[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
+                }
+            }
+        }
+    }
+}
+
+task createLib << {
+    if (!project.hasProperty('createName')) throw new Exception('fail')
+    if (!project.hasProperty('createVersion')) throw new Exception('fail')
+
+    def convertedVersion = createVersion.replaceAll(/\.(.)/, '$1')
+
+    def newProjectName = "${createName}${convertedVersion}"
+
+    def settingsGradle = new File('settings.gradle')
+    settingsGradle.append "include '${newProjectName}'\n"
+
+    def newProject = new File(newProjectName)
+    newProject.mkdir()
+    def buildGradle = new File(newProject, 'build.gradle')
+    buildGradle << """\
+        def projName = '${createName}'
+        version = '${createVersion}'
+        ${ (project.hasProperty('createGroup')) ? 'group = ' + project.createGroup : ''}
+
+        publishing {
+            publications {
+                mavenJava(MavenPublication) {
+                    artifactId "\$projName"
+                    from components.java
+                }
+            }
+            publications {
+                ivyJava(IvyPublication) {
+                    module "\$projName"
+                    from components.java
+                }
+            }
+        }
+    """.stripIndent()
+}
